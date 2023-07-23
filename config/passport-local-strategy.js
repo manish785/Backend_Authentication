@@ -1,8 +1,5 @@
-//const { ignore } = require('nodemon/lib/rules');
 const passport = require('passport');
-
 const LocalStrategy = require('passport-local').Strategy;
-
 const User = require('../models/user');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt'); 
@@ -16,8 +13,10 @@ passport.use(new LocalStrategy({
     try {
         // find a user and establish the identity
         const user = await User.findOne({ email: email });
-        console.log(user);
-        if (!user || (user.password!=req.body.password)) {
+       // console.log(user);
+       console.log(user.password, " ", req.body.password);
+
+        if (!user) {
             req.flash('error', 'Invalid Username or Password!');
             return done(null, false);
         }

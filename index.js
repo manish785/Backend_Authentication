@@ -4,22 +4,25 @@ const port = 8080;
 // It middleware that helps parse HTTP cookies in incoming requests.When a client sends a request to a server, it can include cookies as part of the request headers. Cookies
 // are small pieces of data stored on the client's browser and are used to maintain state and store user information. 
 const cookieParser = require('cookie-parser');
-//const { route } = require('express/lib/application');
 const db = require('./config/mongoose');
 const expressLayouts = require('express-ejs-layouts');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+
+
 // used for session cookie
 const session = require('express-session');
 const passport = require('passport');
 const passportLocal = require('./config/passport-local-strategy');
 const passportGoogle = require('./config/passport-google-oauth2-strategy');
-
 const passportJWT = require('./config/passport-jwt-strategy');
+
+
 const MongoStore = require('connect-mongo');
 const sassMiddleware = require('node-sass-middleware');
 const flash = require('connect-flash');
 const customMware = require('./config/middleware');
+const emailQueue = require('./emailQueue');
 
 app.use(sassMiddleware({
     src: './assets/scss',
@@ -30,7 +33,7 @@ app.use(sassMiddleware({
 }));
 
 
-app.use(express.urlencoded());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 
@@ -84,12 +87,33 @@ app.use(customMware.setFlash);
 // use express router
 app.use('/', require('./routes'));
 
+
+app.post('/send-email', async (req, res) => {
+
+    const { email, subject, message } = req.body;
+  
+    if (!email || !subject || !message) {
+      console.log('Missing required fields:', req.body); // Add this line for logging
+      return res.status(400).json({ message: 'Missing required fields.' });
+    }
+  
+    try {
+      // Add the email sending job to the queue
+      await emailQueue.add({ email, subject, message });
+  
+      return es.json({ message: 'Email added to the queue for processing.' });
+    } catch (err) {
+      console.error('Error adding email job to the queue:', err);
+      return res.status(500).json({ message: 'Error processing the email request.' });
+    }
+  });
+  
 app.listen(port, function(err){
     if(err){
         console.log(`Error while running the server: ${err}`);
         return;
     }
-    console.log(`Server is running fine on port: ${port}`); //by the help of string interpolation, it took the value
+    console.log(`Server is running fine on port: ${port}`); 
 })
 
 

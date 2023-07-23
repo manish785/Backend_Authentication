@@ -1,11 +1,12 @@
 const User = require('../models/user')
 const crypto = require('crypto');
+const { sendResetEmail } = require('../emailService');
 
-// render the sign up page
+// render the Sign Up page
 module.exports.signUp = function(req, res){
-    // If the user is signed in, then hittig this Sign Up route, will render to the users profile
+    // If the user is signed up, then hittig this Sign Up route, will render to the same Sign Up page
     if(req.isAuthenticated()){
-      return res.redirect('/users/profile/:id');
+      return res.redirect('back');
     }
 
     return res.render('user_sign_up', {
@@ -13,11 +14,11 @@ module.exports.signUp = function(req, res){
    });
 }
 
-// render the sign in page
+// render the Sign In page
 module.exports.signIn = function(req, res){
-    // If the user is signed in, then hittig this Sign In route, will render to the users profile
+    // If the user is signed in, then hittig this Sign In route, will render to the same Sign In page
     if(req.isAuthenticated()){
-      return res.redirect('/users/profile/:id');
+      return res.redirect('back');
     }
 
     return res.render('user_sign_in', {
@@ -25,7 +26,7 @@ module.exports.signIn = function(req, res){
    });
 }
 
-// get the sign up data
+// get the Sign Up data
 module.exports.create = async function(req, res) {
     if (req.body.password != req.body.confirm_password) {
       console.log('Password and Confirm Password is not matching!');
@@ -63,7 +64,7 @@ module.exports.createSession = function(req, res){
 
 
 module.exports.destroySession = function(req, res){
-  //this functionality provides by passport.js (req.logout)
+  //this functionality provides by passport.js (req.logout) for the Sign Out
   req.logout(function(err){
     if(err){
       console.log('Error in logging out', err);
@@ -73,3 +74,62 @@ module.exports.destroySession = function(req, res){
     return res.redirect('/');
   });
 }
+
+
+module.exports.resetPassword = async (req, res) => {
+  try {
+    const user = await  User.findOne();
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate the reset token and its expiration time
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    const resetTokenExpiration = Date.now() + 3600000; // Token is valid for 1 hour
+
+    user.resetToken = resetToken;
+    user.resetTokenExpiration = resetTokenExpiration;
+
+    await user.save();
+
+    // Send the reset link to the user's email
+    const resetLink = `http://update-password/reset-password?token=${resetToken}`;
+
+    //console.log(resetLink);
+   // console.log(user.email);
+    await sendResetEmail(user.email, resetLink); // Call the email sending function
+
+    return res.status(200).json({ message: 'Reset link sent successfully' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error resetting password' });
+  }
+};
+
+module.exports.updatePassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiration: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    // Update user's password and clear the reset token
+    user.password = newPassword;
+    user.resetToken = undefined;
+    user.resetTokenExpiration = undefined;
+
+    await user.save();
+
+    return res.status(200).json({ message: 'Password updated successfully' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error updating password' });
+  }
+};
+
+
+
